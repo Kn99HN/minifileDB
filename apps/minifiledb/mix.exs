@@ -4,6 +4,9 @@ defmodule Minifiledb.MixProject do
   def project do
     [
       app: :minifiledb,
+      build_path: "../../_build",
+      deps_path: "../../deps",
+      lockfile: "../../mix.lock",
       version: "0.1.0",
       elixir: "~> 1.10",
       start_permanent: Mix.env() == :prod,
@@ -23,6 +26,7 @@ defmodule Minifiledb.MixProject do
     [
       # {:dep_from_hexpm, "~> 0.3.0"},
       # {:dep_from_git, git: "https://github.com/elixir-lang/my_dep.git", tag: "0.1.0"}
+      {:rbtree, in_umbrella: true}
     ]
   end
 end

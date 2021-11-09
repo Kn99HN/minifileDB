@@ -1,5 +1,5 @@
 defmodule Minifiledb do
-  @thresh_hold=20
+  @thresh_hold 5
 
   defstruct(
     tree: Rbtree.init(),
@@ -29,24 +29,35 @@ defmodule Minifiledb do
   end
 
   def write(key, val) do
-    db = Agent.get(:filetree, fn db -> db.tree end)
-    if db.height > @thresh_hold do
+    db = Agent.get(:filetree, fn db -> db end)
+    tree = db.tree
+    if tree.height == @thresh_hold do
       segment_path = System.get_env("SEGMENT_FILES")
-      segment_file = Enum.join(["Segment", db.segment], "-")
-      case File.open("#{segment_path}/#{segment_file}", [:write]) do
-        {:ok, file} ->
-          IO.write(file, Rb.to_str(db.tree))
-        {:error, reason} -> raise "PANIC @ THE DISCO"
+      segment_file = Enum.join(["segment", db.segment], "-")
+      segment_file_path = "#{segment_path}/#{segment_file}.txt"
+      #case File.touch!(segment_file_path) do
+      #  :ok ->
+      #            {:error, reason} -> 
+      #    raise "#{inspect(reason)}"
+      #end
+      case File.open(segment_file, [:append]) do
+            {:ok, file} ->
+              IO.binwrite(file, Rbtree.to_str(tree))
+           {:error, reason} -> raise "PANIC @ THE DISCO"
       end
-      Agent.update(:filetree, fn db -> %Minifiledb { 
-        tree: Rbtree.init(),
-        segment: db.segment + 1,
-        index_table: %{}
-      } end)
+
+      Agent.update(:filetree, fn db -> 
+        node = %Node{ key: key, val: val}
+        new_tree = Rbtree.insert(Rbtree.init(), node)
+        %Minifiledb { 
+          tree: new_tree,
+          segment: db.segment + 1,
+          index_table: %{}
+        } end)
     else
       Agent.update(:filetree, fn db -> 
         tree = db.tree
-        %{db | tree: Rbtree.insert(tree, %Rbtree.Node{ key: key, val: val })
+        %{db | tree: Rbtree.insert(tree, %Node{ key: key, val: val })}
       end)
     end
   end
@@ -55,7 +66,7 @@ defmodule Minifiledb do
     Agent.get(:filetree, fn db -> 
       res = Rbtree.search(db.tree, key)
       if res == nil do
-        read_from_segment(key)
+        read_from_segments(key)
       else
         res
       end
@@ -66,8 +77,8 @@ defmodule Minifiledb do
     case strs do
       [] -> tree
       [head | tail] ->
-        ls = String.split(strs, ":", trim: true)
-        node = %Rbtree.Node{ key: Enum.at(ls, 0), val: Enum.at(ls, 1) }
+        ls = String.split(head, ":", trim: true)
+        node = %Node{ key: Enum.at(ls, 0), val: Enum.at(ls, 1) }
         tree = Rbtree.insert(tree, node)
         parse_to_binary_tree(tree, tail)
     end
@@ -77,24 +88,29 @@ defmodule Minifiledb do
     case files do
       [] -> nil
       [head | tail] ->
-        case File.read(head) do
-          {:ok, body} ->
-            rbtree = parse_to_binary_tree(Rbtree.init(), String.split(body, ","))
-            result = search(rbtree.tree, key)
-            if result == nil do
-              read_segment_file_and_read(tail, key)
-            else
-              result
-            end
-          {:error, reason} ->
-            raise "PANIC @ THE DISCO"
-        end
+        if String.contains?(head, "segment") do
+          case File.read(head) do
+            {:ok, body} ->
+              rbtree = parse_to_binary_tree(Rbtree.init(), String.split(body, ","))
+              IO.puts("#{inspect(rbtree)}")
+              result = Rbtree.search(rbtree, key)
+              if result == nil do
+                read_segment_file_and_read(tail, key)
+              else
+                result
+              end
+            {:error, reason} ->
+              raise "PANIC @ THE DISCO"
+          end
+       else
+        read_segment_file_and_read(tail, key)
+       end
     end
   end
 
   def read_from_segments(key) do
     segment_file_path = System.get_env("SEGMENT_FILES")
-    case File.ls(segment_file_path) do
+    case File.ls(".") do
       {:ok, files} ->
         result = read_segment_file_and_read(files, key) 
         if result == nil do

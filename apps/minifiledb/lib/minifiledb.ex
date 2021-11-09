@@ -150,6 +150,7 @@ defmodule Minifiledb do
     case File.ls("./segments") do
       {:ok, files} ->
         rbtree = merge_db_from_segment(files)
+        cleanup_unused_segments(files)
         case File.open("./segments/segment-1.txt", [:append]) do
           {:ok, file} -> IO.binwrite(file, Rbtree.to_str(rbtree))
           {:error, reason} -> raise "#{inspect(reason)}"

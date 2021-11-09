@@ -32,6 +32,9 @@ defmodule Minifiledb do
     db = Agent.get(:filetree, fn db -> db end)
     tree = db.tree
     if tree.height == @thresh_hold do
+      case File.mkdir("./segments") do
+        _ -> true
+      end
       segment_file = Enum.join(["segment", db.segment], "-")
       case File.open("./segments/#{segment_file}.txt", [:append]) do
             {:ok, file} ->

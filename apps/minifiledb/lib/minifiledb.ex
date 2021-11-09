@@ -116,4 +116,46 @@ defmodule Minifiledb do
       {:error, reason} -> raise "PANIC @ THE DISCO"
     end
   end
+
+  defp parse_segment_files(files, strs) do
+    case files do
+      [] -> strs
+      [head | tail ] ->
+        case File.read("./segments/#{head}") do
+          {:ok, body} ->
+            parse_segment_files(files, String.split(body, ",") ++ [strs])
+          {:error, reason} ->
+            raise "#{inspect(reason)}"
+        end
+    end
+  end
+
+  defp merge_db_from_segment(files) do
+    strs = parse_segment_files(files, [])
+    parse_to_binary_tree(Rbtree.init(), strs)
+  end
+
+  defp cleanup_unused_segments(files) do
+    case files do
+      [] -> nil
+      [head | tail] -> 
+        case File.rm("./segments/#{head}") do
+          {:ok} -> cleanup_unused_segments(tail)
+          {:error, reason} -> raise "#{inspect(reason)}"
+        end
+    end
+  end
+
+  defp merge_db(parent) do
+    case File.ls("./segments") do
+      {:ok, files} ->
+        rbtree = merge_db_from_segment(files)
+        case File.open("./segments/segment-1.txt", [:append]) do
+          {:ok, file} -> IO.binwrite(file, Rbtree.to_str(rbtree))
+          {:error, reason} -> raise "#{inspect(reason)}"
+        end
+      {:error, reason} ->
+        raise "#{inspect(reason)}"
+    end
+  end
 end

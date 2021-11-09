@@ -28,15 +28,16 @@ defmodule Rbtree do
           node.key < treenode.key ->
             case insert_node(treenode.left, node) do
               {:ok, node} -> {:ok, %{ root | left: node }}
-              {:notok} -> {:notok}
+              {:notok, node} -> {:notok, %{root | left: node}}
             end
           node.key > treenode.key ->
             case insert_node(treenode.right, node) do
               {:ok, node} -> 
                 {:ok, %{ root | right: node}}
-              {:notok} -> {:notok}
+              {:notok, node} -> {:notok, %{root | right: node}}
             end
-          node.key == treenode.key -> {:notok}
+          node.key == treenode.key -> 
+            {:notok, %{root | val: node.val }}
         end
     end
   end
@@ -44,7 +45,7 @@ defmodule Rbtree do
   def insert(tree, node) do
     case insert_node(tree.root, node) do
       {:ok, newtree} -> %Rbtree{ root: newtree, height: tree.height + 1}
-      {:notok} -> tree
+      {:notok, newtree} -> %Rbtree{ root: newtree, height: tree.height}
     end
   end
 

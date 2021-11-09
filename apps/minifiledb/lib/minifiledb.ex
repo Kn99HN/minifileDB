@@ -31,8 +31,18 @@ defmodule Minifiledb do
   def write(key, val) do
     db = Agent.get(:filetree, fn db -> db.tree end)
     if db.height > @thresh_hold do
-      # write db to segment file
-      Agent.update(:filetree, fn db -> %Minifiledb { tree: Rbtree.init() } end)
+      segment_path = System.get_env("SEGMENT_FILES")
+      segment_file = Enum.join(["Segment", db.segment], "-")
+      case File.open("#{segment_path}/#{segment_file}", [:write]) do
+        {:ok, file} ->
+          IO.write(file, Rb.to_str(db.tree))
+        {:error, reason} -> raise "PANIC @ THE DISCO"
+      end
+      Agent.update(:filetree, fn db -> %Minifiledb { 
+        tree: Rbtree.init(),
+        segment: db.segment + 1,
+        index_table: %{}
+      } end)
     else
       Agent.update(:filetree, fn db -> 
         tree = db.tree

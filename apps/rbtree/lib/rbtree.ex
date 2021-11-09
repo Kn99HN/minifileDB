@@ -13,20 +13,35 @@ defmodule Node do
 end
 
 defmodule Rbtree do
+  defstruct(tree: nil, height: 0)
   # @ToDo: convert this to a RB tree
   def init() do
-    nil
+    %Rbtree{ tree: nil, height: 0}
   end
 
   def insert(root, node) do
-    case root do
+    case root.tree do
       nil -> node
-      root ->
+      current ->
         cond do
-          node.key < root.key -> %{root | left: insert(root.left, node)}
-          node.key > root.key -> %{root | right: insert(root.right, node)}
-          node.key == root.key -> root
+          node.key < current.key -> 
+            new_tree = %{current | left: insert(root.left, node)}
+            %Rbtree{tree: new_tree, height: current.height + 1}
+          node.key > current.key -> 
+            new_tree = %{current | right: insert(root.right, node)}
+            %Rbtree{tree: new_tree, height: current.height + 1}
+          node.key == current.key -> root
         end
     end
   end
+
+  def search(root, key) do
+    cond do
+      root == nil -> nil
+      key < root.key -> search(root.left, key)
+      key > root.key -> search(root.right, key)
+      key == root.key -> root.val
+    end
+  end
+
 end

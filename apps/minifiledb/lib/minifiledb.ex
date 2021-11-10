@@ -1,4 +1,5 @@
 defmodule Minifiledb do
+  # Threshold to tune to write to log
   @thresh_hold 5
 
   defstruct(
@@ -7,7 +8,7 @@ defmodule Minifiledb do
     index_table: %{}
   )
 
-  def init() do
+  def init do
     try do
       Agent.stop(:filetree)
     catch
@@ -23,7 +24,7 @@ defmodule Minifiledb do
   def terminate do
     case File.ls("./segments") do
       {:ok, files} -> 
-        cleanup_unused_segments(files)
+        rm_segments(files)
       {:error, reason} -> raise "PANIC @ THE DISCO"
     end
     try do
@@ -45,7 +46,7 @@ defmodule Minifiledb do
         _ -> true
       end
       task = if rem(db.segment, 5) == 0 do
-        Task.async(fn -> merge_db(db.segment) end)
+        Task.async(fn -> merge_segments(db.segment) end)
       end
       case File.open("./segments/#{segment_file}.txt", [:write]) do
             {:ok, file} ->
@@ -80,14 +81,14 @@ defmodule Minifiledb do
     Agent.get(:filetree, fn db -> 
       res = Rbtree.search(db.tree, key)
       if res == nil do
-        read_from_segments(key)
+        read_segments(key)
       else
         res
       end
     end)
   end
 
-  defp parse_to_binary_tree(tree, strs) do
+  defp to_tree(tree, strs) do
     case strs do
       [] -> tree
       [head | tail] ->
@@ -111,21 +112,21 @@ defmodule Minifiledb do
         end
         node = %Node{ key: key, val: Enum.at(ls, 1) }
         tree = Rbtree.insert(tree, node)
-        parse_to_binary_tree(tree, tail)
+        to_tree(tree, tail)
     end
   end
 
-  defp read_segment_file_and_read(files, key) do
+  defp read_from_segments(files, key) do
     case files do
       [] -> nil
       [head | tail] ->
         if String.contains?(head, "segment") do
           case File.read("./segments/#{head}") do
             {:ok, body} ->
-              rbtree = parse_to_binary_tree(Rbtree.init(), String.split(body, ","))
+              rbtree = to_tree(Rbtree.init(), String.split(body, ","))
               result = Rbtree.search(rbtree, key)
               if result == nil do
-                read_segment_file_and_read(tail, key)
+                read_from_segments(tail, key)
               else
                 result
               end
@@ -133,15 +134,15 @@ defmodule Minifiledb do
               raise "#{inspect(reason)}"
           end
        else
-        read_segment_file_and_read(tail, key)
+        read_from_segments(tail, key)
        end
     end
   end
 
-  def read_from_segments(key) do
+  defp read_segments(key) do
     case File.ls("./segments") do
       {:ok, files} ->
-        result = read_segment_file_and_read(files, key) 
+        result = read_from_segments(files, key) 
         if result == nil do
           nil
         else
@@ -151,42 +152,42 @@ defmodule Minifiledb do
     end
   end
 
-  defp parse_segment_files(files, strs) do
+  defp parse_segments(files, strs) do
     case files do
       [] -> strs
       [head | tail ] ->
         case File.read("./segments/#{head}") do
           {:ok, body} ->
-            parse_segment_files(tail, strs ++ String.split(body, ","))
+            parse_segments(tail, strs ++ String.split(body, ","))
           {:error, reason} ->
             raise "#{inspect(reason)}"
         end
     end
   end
 
-  defp merge_db_from_segment(files) do
-    strs = parse_segment_files(files, [])
-    parse_to_binary_tree(Rbtree.init(), strs)
+  defp merge_segments_from_segment(files) do
+    strs = parse_segments(files, [])
+    to_tree(Rbtree.init(), strs)
   end
 
-  defp cleanup_unused_segments(files) do
+  defp rm_segments(files) do
     case files do
       [] -> nil
       [head | tail] -> 
         case File.rm("./segments/#{head}") do
-          :ok -> cleanup_unused_segments(tail)
+          :ok -> rm_segments(tail)
           {:error, reason} -> raise "#{inspect(reason)}"
         end
     end
   end
 
-  defp merge_db(end_segment) do
+  defp merge_segments(end_segment) do
     case File.ls("./segments") do
       {:ok, files} ->
         filtered_files = Enum.filter(files, fn fname -> fname < "segment-#{end_segment}.txt" end)
         sorted_files = Enum.sort(filtered_files, &(&1 <= &2))
-        rbtree = merge_db_from_segment(sorted_files)
-        cleanup_unused_segments(sorted_files)
+        rbtree = merge_segments_from_segment(sorted_files)
+        rm_segments(sorted_files)
         case File.touch("./segments/segment-1.txt") do
           _ -> true
         end

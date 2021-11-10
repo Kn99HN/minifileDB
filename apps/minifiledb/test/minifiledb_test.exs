@@ -61,7 +61,7 @@ defmodule MinifiledbTest do
   test "concurrent writes" do
     Minifiledb.init()
 
-    tasks = [Task.async( fn -> write(1..16) end), Task.async(fn -> write(5..21) end)]
+    tasks = [Task.async(fn -> write(1..16) end), Task.async(fn -> write(5..21) end)]
 
     Task.yield_many(tasks)
 

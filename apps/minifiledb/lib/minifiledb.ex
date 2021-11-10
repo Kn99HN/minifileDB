@@ -36,10 +36,22 @@ defmodule Minifiledb do
         _ -> true
       end
       segment_file = Enum.join(["segment", db.segment], "-")
-      case File.open("./segments/#{segment_file}.txt", [:append]) do
+      case File.touch("./segments/#{segment_file}.txt") do
+        _ -> true
+      end
+      task = if rem(db.segment, 5) == 0 do
+        Task.async(fn -> merge_db(db.segment) end)
+      end
+      case File.open("./segments/#{segment_file}.txt", [:write]) do
             {:ok, file} ->
               IO.binwrite(file, Rbtree.to_str(tree))
            {:error, reason} -> raise "#{inspect(reason)}"
+      end
+
+      case Task.await(task) do
+        nil -> true
+        :ok -> true
+        {:error, reason} -> raise "#{inspect(reason)}"
       end
 
       Agent.update(:filetree, fn db -> 
@@ -123,7 +135,7 @@ defmodule Minifiledb do
       [head | tail ] ->
         case File.read("./segments/#{head}") do
           {:ok, body} ->
-            parse_segment_files(files, String.split(body, ",") ++ [strs])
+            parse_segment_files(files, strs ++ String.split(body, ","))
           {:error, reason} ->
             raise "#{inspect(reason)}"
         end
@@ -146,13 +158,19 @@ defmodule Minifiledb do
     end
   end
 
-  defp merge_db(parent) do
+  defp merge_db(end_segment) do
     case File.ls("./segments") do
       {:ok, files} ->
-        rbtree = merge_db_from_segment(files)
-        cleanup_unused_segments(files)
-        case File.open("./segments/segment-1.txt", [:append]) do
-          {:ok, file} -> IO.binwrite(file, Rbtree.to_str(rbtree))
+        filtered_files = Enum.filter(files, fn fname -> fname < "segment-#{end_segment}.txt" end)
+        sorted_files = Enum.sort(files, &(&1 <= &2))
+        rbtree = merge_db_from_segment(sorted_files)
+        cleanup_unused_segments(sorted_files)
+        case File.touch("./segments/segment-1.txt") do
+          _ -> true
+        end
+        case File.open("./segments/segment-1.txt", [:write]) do
+          {:ok, file} -> 
+            IO.binwrite(file, Rbtree.to_str(rbtree))
           {:error, reason} -> raise "#{inspect(reason)}"
         end
       {:error, reason} ->

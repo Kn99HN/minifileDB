@@ -3,12 +3,12 @@ defmodule Project1.MixProject do
 
   def project do
     [
-      apps_path: "app",
+      apps_path: "apps",
       version: "0.1.0",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       dializer: [
-        plt_add_deps: :app_direct
+        plt_add_deps: :apps_direct
       ]
     ]
   end
@@ -18,7 +18,6 @@ defmodule Project1.MixProject do
       {:dialyxir, "~> 1.0", only: [:dev], runtime: false},
       {:credo, "~> 1.4", only: [:dev, :test], runtime: false},
       {:ex_doc, "~> 0.22", only: :dev, runtime: false},
-      {:jason, "~> 1.2"}
     ]
   end
 end

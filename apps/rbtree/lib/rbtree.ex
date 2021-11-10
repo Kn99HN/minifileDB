@@ -13,35 +13,68 @@ defmodule Node do
 end
 
 defmodule Rbtree do
-  defstruct(tree: nil, height: 0)
+  defstruct(root: nil, height: 0)
   # @ToDo: convert this to a RB tree
   def init() do
-    %Rbtree{ tree: nil, height: 0}
+    %Rbtree{ root: nil, height: 0}
   end
 
-  def insert(root, node) do
-    case root.tree do
-      nil -> node
-      current ->
+  defp insert_node(root, node) do
+    case root do
+      nil 
+        -> {:ok, node}
+      treenode ->
         cond do
-          node.key < current.key -> 
-            new_tree = %{current | left: insert(root.left, node)}
-            %Rbtree{tree: new_tree, height: current.height + 1}
-          node.key > current.key -> 
-            new_tree = %{current | right: insert(root.right, node)}
-            %Rbtree{tree: new_tree, height: current.height + 1}
-          node.key == current.key -> root
+          node.key < treenode.key ->
+            case insert_node(treenode.left, node) do
+              {:ok, node} -> {:ok, %{ root | left: node }}
+              {:notok, node} -> {:notok, %{root | left: node}}
+            end
+          node.key > treenode.key ->
+            case insert_node(treenode.right, node) do
+              {:ok, node} -> 
+                {:ok, %{ root | right: node}}
+              {:notok, node} -> {:notok, %{root | right: node}}
+            end
+          node.key == treenode.key -> 
+            {:notok, %{root | val: node.val }}
         end
     end
   end
 
-  def search(root, key) do
+  def insert(tree, node) do
+    case insert_node(tree.root, node) do
+      {:ok, newtree} -> %Rbtree{ root: newtree, height: tree.height + 1}
+      {:notok, newtree} -> %Rbtree{ root: newtree, height: tree.height}
+    end
+  end
+
+  defp search_key(root, key) do
     cond do
       root == nil -> nil
-      key < root.key -> search(root.left, key)
-      key > root.key -> search(root.right, key)
-      key == root.key -> root.val
+      key == root.key or "#{key}" == root.key -> root.val
+      key < root.key -> search_key(root.left, key)
+      key > root.key -> search_key(root.right, key)
     end
+  end
+
+  def search(tree, key) do
+    search_key(tree.root, key)
+  end
+
+  defp to_str(root, ls) do
+    case root do
+      nil -> ls
+      root ->
+        key = root.key
+        val = root.val
+        ["#{key}:#{val}"] ++ to_str(root.left, ls) ++ to_str(root.right, ls)
+    end
+  end
+
+  def to_str(tree) do
+    outputs = to_str(tree.root, [])
+    Enum.join(outputs, ",")
   end
 
 end

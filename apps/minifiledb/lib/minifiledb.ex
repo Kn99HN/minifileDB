@@ -21,6 +21,11 @@ defmodule Minifiledb do
   end
 
   def terminate do
+    case File.ls("./segments") do
+      {:ok, files} -> 
+        cleanup_unused_segments(files)
+      {:error, reason} -> raise "PANIC @ THE DISCO"
+    end
     try do
       Agent.stop(:filetree)
     catch
@@ -48,10 +53,11 @@ defmodule Minifiledb do
            {:error, reason} -> raise "#{inspect(reason)}"
       end
 
-      case Task.await(task) do
-        nil -> true
-        :ok -> true
-        {:error, reason} -> raise "#{inspect(reason)}"
+      if task != nil do
+        case Task.await(task) do
+          :ok -> true
+          {:error, reason} -> raise "#{inspect(reason)}"
+        end
       end
 
       Agent.update(:filetree, fn db -> 
@@ -86,7 +92,24 @@ defmodule Minifiledb do
       [] -> tree
       [head | tail] ->
         ls = String.split(head, ":", trim: true)
-        node = %Node{ key: Enum.at(ls, 0), val: Enum.at(ls, 1) }
+        raw_key = Enum.at(ls, 0)
+        key = case Integer.parse(raw_key) do
+          {int, rest} ->
+            case rest do
+              "" -> int
+              _ -> 
+                case Float.parse(raw_key) do
+                  {float, rest} ->
+                    case rest do
+                        "" -> float
+                        _ -> raw_key
+                    end
+                  :error -> "Error parsing #{inspect(raw_key)}"
+                end
+            end
+          :error -> raise "Error parsing #{inspect(raw_key)}"
+        end
+        node = %Node{ key: key, val: Enum.at(ls, 1) }
         tree = Rbtree.insert(tree, node)
         parse_to_binary_tree(tree, tail)
     end
@@ -100,7 +123,6 @@ defmodule Minifiledb do
           case File.read("./segments/#{head}") do
             {:ok, body} ->
               rbtree = parse_to_binary_tree(Rbtree.init(), String.split(body, ","))
-              IO.puts("#{inspect(rbtree)}")
               result = Rbtree.search(rbtree, key)
               if result == nil do
                 read_segment_file_and_read(tail, key)
@@ -135,7 +157,7 @@ defmodule Minifiledb do
       [head | tail ] ->
         case File.read("./segments/#{head}") do
           {:ok, body} ->
-            parse_segment_files(files, strs ++ String.split(body, ","))
+            parse_segment_files(tail, strs ++ String.split(body, ","))
           {:error, reason} ->
             raise "#{inspect(reason)}"
         end
@@ -152,7 +174,7 @@ defmodule Minifiledb do
       [] -> nil
       [head | tail] -> 
         case File.rm("./segments/#{head}") do
-          {:ok} -> cleanup_unused_segments(tail)
+          :ok -> cleanup_unused_segments(tail)
           {:error, reason} -> raise "#{inspect(reason)}"
         end
     end
@@ -162,7 +184,7 @@ defmodule Minifiledb do
     case File.ls("./segments") do
       {:ok, files} ->
         filtered_files = Enum.filter(files, fn fname -> fname < "segment-#{end_segment}.txt" end)
-        sorted_files = Enum.sort(files, &(&1 <= &2))
+        sorted_files = Enum.sort(filtered_files, &(&1 <= &2))
         rbtree = merge_db_from_segment(sorted_files)
         cleanup_unused_segments(sorted_files)
         case File.touch("./segments/segment-1.txt") do
